@@ -3,20 +3,20 @@
 
 
 
-//neutrul e 105 de grade nu 90, asta e , asa l lasam
+//neutrul e 105 de grade nu 90, asta e , asa l lasam, probleme tehnica
 /*
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
-Adafruit_PWMServoDriver pca1 = Adafruit_PWMServoDriver(0x40);
-Adafruit_PWMServoDriver pca2 = Adafruit_PWMServoDriver(0x41);
+Adafruit_PWMServoDriver pca1 = Adafruit_PWMServoDriver(0x40); // primul pca
+Adafruit_PWMServoDriver pca2 = Adafruit_PWMServoDriver(0x41); // al doilea pca
 
 #define SERVO_MIN 150
 #define SERVO_MAX 600
 #define SERVO_FREQ 50
 
 int angleToPulse(int angle) {
-  return map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
+  return map(angle, 0, 180, SERVO_MIN, SERVO_MAX); // functie de convertire
 }
 
 void setup() {
@@ -29,43 +29,34 @@ void setup() {
   // toate la 90 grade
   for (int i = 0; i < 16; i++) {
     pca1.setPWM(i, 0, angleToPulse(105));
-    pca2.setPWM(i, 0, angleToPulse(105));
+    pca2.setPWM(i, 0, angleToPulse(105));      //CALIBRARE PENTRU TOATE CANALELE DIN PCA9685 pentru a fi ce trebuie, CALIBRAREA ESTE OBLIGATORIE
   }
 
-  Serial.println("Scrie: placa canal unghi");
+  
 }
 
 void loop() {
-  if (Serial.available()) {
-    int placa, canal, unghi;
-    Serial >> placa >> canal >> unghi;
-    int pulse = angleToPulse(unghi);
 
-    if (placa == 1) pca1.setPWM(canal, 0, pulse);
-    else pca2.setPWM(canal, 0, pulse);
-
-    Serial.println("OK");
   }
 }
  
-
-
-
-
-
-
-
-
-
-
-
 
 */
 
 
 
+
+
+
+
  // prima tentativa de miscare a piciorului, dar e prea robotic
  /*
+
+
+
+
+
+
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
@@ -78,17 +69,19 @@ Adafruit_PWMServoDriver pca2 = Adafruit_PWMServoDriver(0x41);
 #define SERVO_MAX 600
 #define NEUTRAL 105  // poziția neutră calibrată
 
-// Canalele folosite (ultimele 3)
+// Canalele folosite (ultimele 3)  // definitea coxei, femur, tibie direct pe canale ca sa nu le scriem mai tarziu
 #define COXA_CH  13
 #define FEMUR_CH 14
 #define TIBIA_CH 15
 
-// Conversie unghi -> impuls PCA9685
+// Conversie unghi -> impuls PCA9685, ca deobicei
 int angleToPulse(int angle) {
   return map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
 }
 
-// Functie mișcare lină cu easing
+// Functie ciudata inspirata de AI, dar merge ca pixu, i am dat drop, a ramas aici in caz de cumva vreua sa revin
+
+
 void smoothMove(Adafruit_PWMServoDriver &pca, int ch, int fromAngle, int toAngle, int totalTimeMs = 500) {
   int steps = 30; 
   unsigned long stepDelay = totalTimeMs / steps;
@@ -178,24 +171,24 @@ Adafruit_PWMServoDriver pca = Adafruit_PWMServoDriver(0x40);
 #define TIBIA_CH 15
 #define COXA_CH 13
 
-int angleToPulse(int angle) {
+int angleToPulse(int angle) {  /// tot asa, convertire din grade in pulse
   return map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
 }
 
 void setup() {
-  Wire.begin();
+  Wire.begin(); // pt a comunica cu pca9685
   pca.begin();
   pca.setPWMFreq(SERVO_FREQ);
 
   delay(1000);
 
-
+// toate sunt fara LOOPS, pentru a vedea cum se misca el pe axe, si pentru a-i defini axele pe care le are
   // FEMUR în sus
-  pca.setPWM(FEMUR_CH, 0, angleToPulse(NEUTRAL + 50));
+  pca.setPWM(FEMUR_CH, 0, angleToPulse(NEUTRAL + 50)); // functie prestabilita care seteaza canalul, delayul si o alta functie care e chemata  pentru unghiul respectiv
   delay(500);
 
   // TIBIA se întinde în jos
-  pca.setPWM(TIBIA_CH, 0, angleToPulse(NEUTRAL + 60));
+  pca.setPWM(TIBIA_CH, 0, angleToPulse(NEUTRAL + 60));    // aceeasi chestie, incercam sa gasesc sensul in miscarii unui singur picior
  delay(500);
  
 
@@ -217,7 +210,7 @@ void setup() {
    pca.setPWM(COXA_CH, 0, angleToPulse(NEUTRAL - 30));
   delay(500);
 
-    pca.setPWM(TIBIA_CH, 0, angleToPulse(NEUTRAL + 80));
+    pca.setPWM(TIBIA_CH, 0, angleToPulse(NEUTRAL + 80));   // cu aces cod am inteles relativ cum ar trebui sa miste in pozitie naturala
  delay(500);
 
 }
@@ -287,7 +280,7 @@ void setServo(int ch, float angle) {
   pca.setPWM(ch, 0, angleToPulse(angle));
 }
 
-// Funcția IK
+// Funcția IK  // matematica(mecanica) pura, formule luate din cinematica inversa adaptate la cod
 void IK(float x, float y, float z, float* t1, float* t2, float* t3) {
   float pi = 3.14159;
   *t1 = atan2(z, x) * 180/pi + 90;
@@ -516,12 +509,12 @@ void loop() {
 // #define NEUTRAL2 105   // pentru placa 2 (poți ajusta)
 
 
-// // Canalele pentru un picior (schimbi după caz)
+// // Canalele pentru un picior , schimb dupa caz
 // #define COXA_CH  10
 // #define FEMUR_CH 9
 // #define TIBIA_CH 7
 
-// // Lungimile reale
+// // Lungimile reale, pentru a le aplica in CINEMATICA, avem nevoie de lungimile DREPTELOR
 // float L1 = 64;   // coxa
 // float L2 = 70;   // femur
 // float L3 = 155;  // tibia
@@ -537,7 +530,7 @@ void loop() {
 //   pca.setPWM(ch, 0, angleToPulse(angle));
 // }
 
-// // Funcția IK
+// // Funcția IK, formule in COD
 // void IK(float x, float y, float z, float* t1, float* t2, float* t3) {
 //   float pi = 3.14159;
 //   *t1 = atan2(z, x) * 180/pi + 90;
@@ -629,6 +622,26 @@ void loop() {
 //     delay(30);
 //   }
 // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+DE AICI INCEPE PARTEA NASPA IN CARE INCA SUNT BLOCAT, PENTRU CA DAU DE TOT FELU DE ERORI, ASA CA INCA MAI LUCREZ, AICI AM FOST SI AJUTAT DE AI PENTRU CA DEJA ERAM PREA IN CEATA, sunt foarte multe aspecte de care trebuie sa fiu atent sa nu dea gres, si momentan misca putin haotic, desi am reusit sa ii fac cinematica inversa si un movement foarte asemanator cu cel natural al unui paoianjen pe cele 3 picioare, se poate observa in video, este un proiect destul de dificil pentru mine si inca necesita timp
+
+
+
+// pe langa partea de cod care mai da rateuri da si cea hardware, still working on it.
+
+
 
 
 
