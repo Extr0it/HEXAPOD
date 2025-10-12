@@ -1,0 +1,236 @@
+
+
+// PRIMA TENTATIVA DE CINEMATICA INVERSA SI MERGE DESTUL DE PROMISING!!!!!!!!
+  // (pentru un singur picior)
+
+
+/*
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+#include <math.h>
+
+Adafruit_PWMServoDriver pca = Adafruit_PWMServoDriver(0x40);
+
+#define SERVO_FREQ 50
+#define SERVO_MIN 150
+#define SERVO_MAX 600
+#define NEUTRAL 105
+
+// Canalele pentru 1 picior
+#define COXA_CH  14
+#define FEMUR_CH 13
+#define TIBIA_CH 12
+
+// Lungimile în mm – valorile reale 
+float L1 = 64;   // coxa
+float L2 = 70;   // femur
+float L3 = 155;  // tibia
+
+// Conversie grade->PWM
+int angleToPulse(float angle) {
+  return map((int)angle, 0, 180, SERVO_MIN, SERVO_MAX);
+}
+
+void setServo(int ch, float angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 180) angle = 180;
+  pca.setPWM(ch, 0, angleToPulse(angle));
+}
+
+// Funcția IK  // matematica(mecanica) pura, formule luate din cinematica inversa adaptate la cod
+void IK(float x, float y, float z, float* t1, float* t2, float* t3) {
+  float pi = 3.14159;
+  *t1 = atan2(z, x) * 180/pi + 90;
+  float rx = sqrt(x*x + z*z) - L1;
+  float fi2 = atan2(y, rx);
+  float r = sqrt(y*y + rx*rx);
+  float fi1 = -acos((L2*L2 + r*r - L3*L3)/(2*L2*r));
+  *t2 = (fi2 - fi1)*180/pi;
+  float fi3 = acos((L2*L2 + L3*L3 - r*r) / (2*L2*L3));
+*t3 = 180 - fi3*180/pi;
+}
+//-----------------------------------------------------------------
+
+// Mișcă piciorul într-o poziție
+void gotoPosition(float x, float y, float z) {
+  float t1, t2, t3;
+
+  // 1. PROTECȚIE: verifică dacă punctul e accesibil
+  float reach = sqrt(x*x + z*z);
+  float maxReach = L1 + L2 + L3 - 5;  // mică rezervă
+  if (reach > maxReach || isnan(reach)) {
+    Serial.println("Punct inaccesibil!"); 
+    return; // ieșire fără să miște servo-urile
+  }
+
+  IK(x, y, z, &t1, &t2, &t3);
+
+  // Dacă rezultatul e NaN (punct imposibil)
+  if (isnan(t1) || isnan(t2) || isnan(t3)) {
+    Serial.println("IK a dat NaN!");
+    return;
+  }
+
+  Serial.print("Angles: ");
+  Serial.print(t1); Serial.print(" ");
+  Serial.print(t2); Serial.print(" ");
+  Serial.println(t3);
+
+  setServo(COXA_CH,  NEUTRAL + (t1 - 90));
+  setServo(FEMUR_CH, NEUTRAL + t2);
+  setServo(TIBIA_CH, 50 + t3);
+}
+
+void setup() {
+  Serial.begin(9600);
+  Wire.begin();
+  pca.begin();
+  pca.setPWMFreq(SERVO_FREQ);
+  delay(1000);
+}
+
+
+void loop() {
+    float xStart = 100;     
+  float xEnd   = 130;     
+  float yGround = -140;  
+  float stepHeight = 40; 
+  float zMax = 70;       
+
+  // puncte pentru curba Bezier
+  float P0[3] = {xStart, yGround, -zMax};        // jos stânga
+  float P1[3] = {xStart + 5, yGround + stepHeight, -zMax/2}; // punct control urcare
+  float P2[3] = {xEnd - 5, yGround + stepHeight,  zMax/2};   // punct control coborâre
+  float P3[3] = {xEnd,   yGround,  zMax};        // jos dreapta
+
+  for (float t = 0; t <= 1.0; t += 0.03) {
+    float u = 1 - t;
+    float b0 = u*u*u;
+    float b1 = 3*u*u*t;
+    float b2 = 3*u*t*t;
+    float b3 = t*t*t;
+
+    // punct Bezier
+    float x = b0*P0[0] + b1*P1[0] + b2*P2[0] + b3*P3[0];
+    float y = b0*P0[1] + b1*P1[1] + b2*P2[1] + b3*P3[1];
+    float z = b0*P0[2] + b1*P1[2] + b2*P2[2] + b3*P3[2];
+
+    gotoPosition(x, y, z);
+    delay(30);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+// varianta de AUR , IK CU 3 PICIOARE SI MERGE FOARTE FOARTE BINE , SEAMANA CU MISCAREA NATURALA,
+SINGURELE ADJUSTARI PE CARE AR TRB SA LE FACI OFFFSETUL!!!!!!
+
+*/
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+#include <math.h>
+
+// Driver PCA9685 (o singură placă pentru acum)
+Adafruit_PWMServoDriver pca1 = Adafruit_PWMServoDriver(0x40);
+
+#define SERVO_FREQ 50
+#define SERVO_MIN 150
+#define SERVO_MAX 600
+
+// Dimensiuni reale ale segmentelor
+float L1 = 64, L2 = 70, L3 = 155;
+
+// Structură pentru un picior
+struct Leg {
+  int tibia, femur, coxa;        // canalele pe PCA9685
+  int offTibia, offFemur, offCoxa; // offset-uri de calibrare
+  float yGround;                 // poziția solului pentru picior
+};
+
+// Definim 3 picioare (placa 1)
+Leg leg1 = {0, 1, 2,    0, 0, 0, -140};  // calibrat
+Leg leg2 = {8, 9, 10,   0, 0, 0, -140};  // picior 2 mai jos
+Leg leg3 = {12, 13, 14, 0, 0, 0, -140};  // calibrat
+
+
+// Conversie unghi -> puls PWM
+int angleToPulse(float angle) {
+  return map((int)angle, 0, 180, SERVO_MIN, SERVO_MAX);
+}
+
+// Setăm un servo pe un anumit canal
+void setServo(int ch, float angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 180) angle = 180;
+  pca1.setPWM(ch, 0, angleToPulse(angle));
+}
+
+// Cinematică inversă pentru un picior
+void IK(float x, float y, float z, float* t1, float* t2, float* t3) {
+  float pi = 3.14159;
+
+  *t1 = atan2(z, x) * 180/pi + 90;
+
+  float rx = sqrt(x*x + z*z) - L1;
+  float fi2 = atan2(y, rx);
+  float r   = sqrt(y*y + rx*rx);
+
+  float fi1 = -acos((L2*L2 + r*r - L3*L3) / (2*L2*r));
+  *t2 = (fi2 - fi1) * 180/pi;
+
+  float fi3 = acos((-L2*L2 - L3*L3 + r*r) / (-2*L2*L3));
+  *t3 = (pi - fi3) * 180/pi;
+}
+
+// Trimitem un picior la o anumită poziție
+void gotoLeg(Leg &leg, float x, float y, float z) {
+  float t1, t2, t3;
+  IK(x, y, z, &t1, &t2, &t3);
+
+
+// -----------ZONA DE OFFSET!!!!!!!!!!!!!!!-------- FOARTE IMPORTANT (schimba doar cifrele)
+  setServo(leg.coxa,  105 + (t1 - 90) + leg.offCoxa); 
+  setServo(leg.femur, 90 + t2       + leg.offFemur);    // SI AICI TR ADJUSTAT IN FUNCTIE DE PREFERINTA
+  setServo(leg.tibia, 50 + t3       + leg.offTibia);   // AICI TRB ADJUSTAT
+}
+
+// Traiectoria unui pas (legPath)
+void legPath(Leg &leg, float phase) {
+  float xStart = 100, xEnd = 130;
+  float stepHeight = 40, zMax = 60;
+
+  float t = phase;
+  float x = xStart + (xEnd - xStart) * t;
+  float z = zMax * (2*t - 1);
+  float lift = stepHeight * sin(t * M_PI);
+  float y = leg.yGround + lift;  // fiecare picior poate avea alt sol
+
+  gotoLeg(leg, x, y, z);
+}
+
+// ------------------- SETUP -------------------
+void setup() {
+  Wire.begin();
+  pca1.begin();
+  pca1.setPWMFreq(SERVO_FREQ);
+
+  delay(1000);
+}
+
+// ------------------- LOOP -------------------
+void loop() {
+  for (float t = 0; t <= 1.0; t += 0.03) {
+    legPath(leg1, t);      // picior 1
+    legPath(leg2, t);      // picior 2 (sincron cu 1)
+    legPath(leg3, 1 - t);  // picior 3 (opus)
+
+    delay(25);
+  }
+}
